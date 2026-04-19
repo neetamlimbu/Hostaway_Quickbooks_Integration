@@ -1,0 +1,12 @@
+{
+  "id": 12345,
+  "listingId": 678,
+  "guestName": "John Doe",
+  "guestEmail": "john@example.com",
+  "guestPhone": "+123456789",
+  "checkIn": "2024-05-01",
+  "checkOut": "2024-05-05",
+  "totalPrice": 450.00,
+  "currency": "USD",
+  "updated": 1712345678000
+}
