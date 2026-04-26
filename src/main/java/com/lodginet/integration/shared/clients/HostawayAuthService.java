@@ -27,27 +27,35 @@ public class HostawayAuthService {
             return cachedToken;
         }
 
-        RequestBody body = RequestBody.create(
-                "{ \"grant_type\": \"client_credentials\", " +
-                        "\"client_id\": \"" + clientId + "\", " +
-                        "\"client_secret\": \"" + clientSecret + "\" }",
-                MediaType.get("application/json")
-        );
+        RequestBody body = new FormBody.Builder()
+                .add("grant_type", "client_credentials")
+                .add("client_id", clientId)
+                .add("client_secret", clientSecret)
+                .build();
 
         Request request = new Request.Builder()
                 .url("https://api.hostaway.com/v1/accessTokens")
                 .post(body)
-                .addHeader("Content-Type", "application/json")
                 .build();
 
         JsonNode json;
         try (Response response = http.newCall(request).execute()) {
-            assert response.body() != null;
-            json = mapper.readTree(response.body().string());
+
+            if (response.body() == null) {
+                throw new RuntimeException("Hostaway OAuth failed: empty response body");
+            }
+
+            String raw = response.body().string();
+            json = mapper.readTree(raw);
         }
 
-        String token = json.get("result").get("access_token").asText();
-        long expiresIn = json.get("result").get("expires_in").asLong();
+        // Hostaway returns access_token at the top level
+        String token = json.path("access_token").asText(null);
+        long expiresIn = json.path("expires_in").asLong(3600);
+
+        if (token == null) {
+            throw new RuntimeException("Hostaway OAuth error: " + json.toString());
+        }
 
         this.cachedToken = token;
         this.expiresAt = now + (expiresIn * 1000);

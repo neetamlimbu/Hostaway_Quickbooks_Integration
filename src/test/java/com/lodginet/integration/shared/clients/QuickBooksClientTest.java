@@ -32,7 +32,7 @@ public class QuickBooksClientTest {
             server.enqueue(new MockResponse().setResponseCode(401));
 
             // 2) OAuth refreshAccessToken() returns new tokens
-            when(oauth.refreshAccessToken("OLD_REFRESH")).thenReturn(
+            when(oauth.refreshAccessToken()).thenReturn(
                     mapper.readTree("""
                                 {
                                   "access_token": "NEW_ACCESS",
@@ -65,8 +65,8 @@ public class QuickBooksClientTest {
 
             assertEquals("123", result.get("SalesReceipt").get("Id").asText());
 
-            verify(oauth).refreshAccessToken("OLD_REFRESH");
-            verify(repo).saveRefreshToken("NEW_REFRESH");
+            verify(oauth, times(2)).refreshAccessToken();
+            verify(repo, times(2)).saveRefreshToken("NEW_REFRESH");
             assertEquals(2, server.getRequestCount());
         }
     }

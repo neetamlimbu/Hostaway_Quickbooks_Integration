@@ -46,6 +46,11 @@ public final class Settings {
         return getenvRequired("QB_REDIRECT_URI");
     }
 
+    public static String qbRefreshToken() {
+        return getenvRequired("QB_REFRESH_TOKEN");
+    }
+
+    // Helpers
     private static String getenvOrDefault(String key, String def) {
         String v = System.getenv(key);
         return (v != null && !v.isBlank()) ? v : def;

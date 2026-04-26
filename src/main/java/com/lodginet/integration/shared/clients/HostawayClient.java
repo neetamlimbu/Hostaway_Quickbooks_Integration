@@ -102,6 +102,33 @@ public class HostawayClient {
         return all;
     }
 
+    public JsonNode getReservation(long reservationId) throws Exception {
+        String url = baseUrl + "/reservations/" + reservationId;
+        System.out.println("DEBUG url=" + url);
+        // Get Hostaway access token
+        String token = auth.getAccessToken();
+        System.out.println("DEBUG token=" + token);
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer " + token)
+                .addHeader("Accept", "application/json")
+                .get()
+                .build();
+        System.out.println("DEBUG request=" + request);
+        try (Response response = http.newCall(request).execute()) {
+
+            if (!response.isSuccessful()) {
+                throw new IllegalStateException("Hostaway error: HTTP " + response.code());
+            }
+
+            assert response.body() != null;
+            return mapper.readTree(response.body().string());
+        } catch (Exception e) {
+            System.err.println("DEBUG exception=" + e.getMessage());
+            return null;
+        }
+    }
+
     private JsonNode fetchReservationsPage(Instant since, int page) throws Exception {
         HttpUrl url = HttpUrl.parse(baseUrl + "/reservations")
                 .newBuilder()

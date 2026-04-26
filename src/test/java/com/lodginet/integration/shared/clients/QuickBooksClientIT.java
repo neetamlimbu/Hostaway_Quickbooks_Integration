@@ -10,7 +10,6 @@ import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 public class QuickBooksClientIT {
@@ -62,7 +61,7 @@ public class QuickBooksClientIT {
                       "refresh_token": "NEW_REFRESH"
                     }
                     """);
-            when(oauth.refreshAccessToken(anyString())).thenReturn(tokenResponse);
+            when(oauth.refreshAccessToken()).thenReturn(tokenResponse);
 
             OkHttpClient http = new OkHttpClient();
 
@@ -83,8 +82,8 @@ public class QuickBooksClientIT {
 
             // Verify refresh flow
             verify(repo, times(1)).loadRefreshToken();
-            verify(oauth).refreshAccessToken("OLD_REFRESH");
-            verify(repo).saveRefreshToken("NEW_REFRESH");
+            verify(oauth, times(2)).refreshAccessToken();
+            verify(repo, times(2)).saveRefreshToken("NEW_REFRESH");
         }
     }
 }

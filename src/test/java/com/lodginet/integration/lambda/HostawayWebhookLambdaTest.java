@@ -3,6 +3,7 @@ package com.lodginet.integration.lambda;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.lodginet.integration.shared.clients.HostawayClient;
 import com.lodginet.integration.webhook.HostawayWebhookLambda;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,6 @@ public class HostawayWebhookLambdaTest {
 
     @Test
     void testLambdaHandler() throws Exception {
-        // Mock HostawayClient so no real HTTP or env vars are needed
         HostawayClient hostawayClient = mock(HostawayClient.class);
 
         Context ctx = mock(Context.class);
@@ -25,16 +25,18 @@ public class HostawayWebhookLambdaTest {
         when(ctx.getLogger()).thenReturn(logger);
 
         APIGatewayProxyRequestEvent event = new APIGatewayProxyRequestEvent();
-        event.setBody("{\"event\":\"reservation_created\",\"reservationId\":123}");
+        event.setBody(
+                "{\"event\":\"reservation_created\",\"data\":{\"reservation\":{\"id\":123}}}"
+        );
 
-        // Use test constructor
         HostawayWebhookLambda lambda = new HostawayWebhookLambda(hostawayClient);
 
-        String result = lambda.handleRequest(event, ctx);
+        APIGatewayProxyResponseEvent response = lambda.handleRequest(event, ctx);
 
-        assertEquals("ok", result);
+        assertEquals(200, response.getStatusCode());
+        assertEquals("ok", response.getBody());
 
-        // Verify we attempted to fetch reservations
-        verify(hostawayClient, times(1)).getReservationsUpdatedSince(any(Instant.class));
+        verify(hostawayClient, times(1))
+                .getReservationsUpdatedSince(any(Instant.class));
     }
 }

@@ -3,6 +3,7 @@ package com.lodginet.integration.webhook;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lodginet.integration.config.Settings;
@@ -12,81 +13,123 @@ import okhttp3.OkHttpClient;
 
 import java.time.Instant;
 
-public class HostawayWebhookLambda implements RequestHandler<APIGatewayProxyRequestEvent, String> {
+public class HostawayWebhookLambda implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
     private final ObjectMapper mapper;
     private final HostawayClient hostawayClient;
 
-    /**
-     * Production constructor – wires real dependencies using Settings/env.
-     */
+    // ----------------------------------------------------------------------
+    // PRODUCTION CONSTRUCTOR — uses Settings + real dependencies
+    // ----------------------------------------------------------------------
     public HostawayWebhookLambda() {
-        this(new HostawayClient(
+        ObjectMapper mapper = new ObjectMapper();
+
+        HostawayAuthService auth = new HostawayAuthService(
+                mapper,
+                Settings.hostawayClientId(),
+                Settings.hostawayClientSecret()
+        );
+
+        HostawayClient client = new HostawayClient(
                 new OkHttpClient(),
-                new ObjectMapper(),
-                new HostawayAuthService(
-                        new ObjectMapper(),
-                        Settings.hostawayClientId(),
-                        Settings.hostawayClientSecret()
-                ),
+                mapper,
+                auth,
                 Settings.hostawayBaseUrl()
-        ));
+        );
+
+        this.mapper = mapper;
+        this.hostawayClient = client;
     }
 
-    /**
-     * Test constructor – allows injecting a mock HostawayClient.
-     */
+    // ----------------------------------------------------------------------
+    // TEST CONSTRUCTOR — allows injecting a mock HostawayClient
+    // ----------------------------------------------------------------------
     public HostawayWebhookLambda(HostawayClient hostawayClient) {
         this.mapper = new ObjectMapper();
         this.hostawayClient = hostawayClient;
     }
 
+    // ----------------------------------------------------------------------
+    // LAMBDA HANDLER
+    // ----------------------------------------------------------------------
     @Override
-    public String handleRequest(APIGatewayProxyRequestEvent input, Context context) {
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
         try {
             JsonNode event = mapper.readTree(input.getBody());
+            String eventType = event.path("event").asText("unknown");
 
-            String eventType = event.path("event").asText();
             log(context, "Received Hostaway webhook event: " + eventType);
 
             return switch (eventType) {
                 case "reservation_created", "reservation_updated" -> handleReservationWebhook(event, context);
-                case "new_message_received" -> handleMessageWebhook(event, context);
-                default -> "ignored";
+
+                case "new_message_received" -> ok("message webhook processed");
+
+                default -> {
+                    log(context, "Ignoring unsupported event type: " + eventType);
+                    yield ok("ignored");
+                }
             };
 
         } catch (Exception e) {
             log(context, "Error processing webhook: " + e.getMessage());
-            return "error";
+            return error("error processing webhook");
         }
     }
 
-    private String handleReservationWebhook(JsonNode event, Context context) {
+    // ----------------------------------------------------------------------
+    // EVENT HANDLERS
+    // ----------------------------------------------------------------------
+    private APIGatewayProxyResponseEvent handleReservationWebhook(JsonNode event, Context context) {
         try {
-            long reservationId = event.path("reservationId").asLong();
-            log(context, "Fetching reservation: " + reservationId);
+            JsonNode reservation = event.path("data").path("reservation");
+            long reservationId = reservation.path("id").asLong();
 
-            // In tests this is a mock, so no real HTTP happens.
+            log(context, "Processing reservation webhook for ID: " + reservationId);
+
+            if (reservationId == 0) {
+                log(context, "Invalid webhook payload: missing reservation.id");
+                return ok("ignored");
+            }
+
             hostawayClient.getReservationsUpdatedSince(
                     Instant.now().minusSeconds(86400)
             );
 
-            return "ok";
+            return ok("ok");
 
         } catch (Exception e) {
             log(context, "Error handling reservation webhook: " + e.getMessage());
-            return "error";
+            return error("error handling reservation webhook");
         }
     }
 
-    private String handleMessageWebhook(JsonNode event, Context context) {
+    private APIGatewayProxyResponseEvent handleMessageWebhook(JsonNode event, Context context) {
         log(context, "Message webhook received");
-        return "ok";
+        return ok("ok");
     }
 
+    // ----------------------------------------------------------------------
+    // RESPONSE HELPERS
+    // ----------------------------------------------------------------------
+    private APIGatewayProxyResponseEvent ok(String body) {
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(200)
+                .withBody(body);
+    }
+
+    private APIGatewayProxyResponseEvent error(String body) {
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(500)
+                .withBody(body);
+    }
+
+    // ----------------------------------------------------------------------
+    // LOGGING
+    // ----------------------------------------------------------------------
     private void log(Context context, String msg) {
         if (context != null && context.getLogger() != null) {
-            context.getLogger().log(msg);
+            context.getLogger().log(msg + "\n");
         }
     }
 }

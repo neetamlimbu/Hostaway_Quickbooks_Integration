@@ -34,7 +34,9 @@ public class HostawayPollingLambda implements RequestHandler<Object, String> {
                 Settings.qbClientSecret(),
                 Settings.qbRedirectUri(),
                 Settings.qbRealmId(),
-                Settings.qbBaseUrl()
+                Settings.qbBaseUrl(),
+                Settings.qbRefreshToken(),
+                Settings.qbTokenEndpoint()
         );
     }
 
@@ -52,7 +54,9 @@ public class HostawayPollingLambda implements RequestHandler<Object, String> {
             String qbClientSecret,
             String qbRedirectUri,
             String qbRealmId,
-            String qbBaseUrl
+            String qbBaseUrl,
+            String qbRefreshToken,
+            String qbTokenEndpoint
     ) {
 
         // ---------------------------
@@ -72,12 +76,14 @@ public class HostawayPollingLambda implements RequestHandler<Object, String> {
         );
 
         // ---------------------------
-        // QuickBooks OAuth
+        // QuickBooks OAuth (FIXED)
         // ---------------------------
         OAuthService oauth = new OAuthService(
                 qbClientId,
                 qbClientSecret,
-                qbRedirectUri
+                qbRedirectUri,
+                qbRefreshToken,
+                qbTokenEndpoint
         );
 
         RefreshTokenRepository tokenRepo = new RefreshTokenRepository(dynamo);
